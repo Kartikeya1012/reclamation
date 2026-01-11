@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reclamation - Storage Cleanup</title>
+    <style>
+        body { font-family: system-ui; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        input { padding: 8px; width: 300px; }
+        .file-list { max-height: 400px; overflow-y: auto; margin-top: 10px; }
+        .file-item { padding: 5px; border-bottom: 1px solid #eee; }
+        .auto-safe { background: #e8f5e9; }
+        .needs-review { background: #fff3e0; }
+        .do-not-touch { background: #ffebee; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Reclamation - Storage Cleanup Tool</h1>
+    
+    <div class="section">
+        <h2>Triage Folder</h2>
+        <input type="text" id="triagePath" placeholder="Enter folder path (e.g., ~/Downloads)" value="~/Downloads">
+        <button onclick="runTriage()">Triage</button>
+        <div id="triageResults"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Clean Folder</h2>
+        <input type="text" id="cleanPath" placeholder="Enter folder path" value="~/Downloads">
+        <button onclick="runClean()">Clean</button>
+        <div id="cleanResults"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Manifests</h2>
+        <button onclick="listManifests()">List Manifests</button>
+        <div id="manifestList"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Restore</h2>
+        <input type="text" id="restoreId" placeholder="Manifest ID (leave empty for latest)">
+        <button onclick="runRestore()">Restore</button>
+        <div id="restoreResults"></div>
+    </div>
+
+    <script>
+        async function runTriage() {
+            const path = document.getElementById('triagePath').value;
+            const results = document.getElementById('triageResults');
+            results.innerHTML = 'Loading...';
+            
+            try {
+                const response = await fetch(`/api/triage/${encodeURIComponent(path)}`);
+                const data = await response.json();
+                
+                let html = `<h3>Auto-safe (${data.auto_safe.length} items)</h3>`;
+                html += '<div class="file-list auto-safe">';
+                data.auto_safe.forEach(item => {
+                    html += `<div class="file-item">${item.path} ${item.reason ? '- ' + item.reason : ''}</div>`;
+                });
+                html += '</div>';
+                
+                html += `<h3>Needs Review (${data.needs_review.length} items)</h3>`;
+                html += '<div class="file-list needs-review">';
+                data.needs_review.forEach(item => {
+                    html += `<div class="file-item">${item.path}</div>`;
+                });
+                html += '</div>';
+                
+                html += `<h3>Do Not Touch (${data.do_not_touch.length} items)</h3>`;
+                html += '<div class="file-list do-not-touch">';
+                data.do_not_touch.forEach(item => {
+                    html += `<div class="file-item">${item.path}</div>`;
+                });
+                html += '</div>';
+                
+                results.innerHTML = html;
+            } catch (error) {
+                results.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function runClean() {
+            const path = document.getElementById('cleanPath').value;
+            const results = document.getElementById('cleanResults');
+            results.innerHTML = 'Cleaning...';
+            
+            try {
+                const response = await fetch('/api/clean', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    results.innerHTML = `<div class="success">${data.message}<br>Manifest ID: ${data.manifest_id}</div>`;
+                } else {
+                    results.innerHTML = `<div class="error">${data.message}</div>`;
+                }
+            } catch (error) {
+                results.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function listManifests() {
+            const results = document.getElementById('manifestList');
+            results.innerHTML = 'Loading...';
+            
+            try {
+                const response = await fetch('/api/list');
+                const data = await response.json();
+                
+                if (data.manifests.length === 0) {
+                    results.innerHTML = '<div>No manifests found</div>';
+                } else {
+                    let html = '<div class="file-list">';
+                    data.manifests.forEach(id => {
+                        html += `<div class="file-item">${id} <button onclick="restoreById('${id}')">Restore</button></div>`;
+                    });
+                    html += '</div>';
+                    results.innerHTML = html;
+                }
+            } catch (error) {
+                results.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function runRestore() {
+            const id = document.getElementById('restoreId').value;
+            const results = document.getElementById('restoreResults');
+            results.innerHTML = 'Restoring...';
+            
+            try {
+                const manifestId = id || (await fetch('/api/list').then(r => r.json())).manifests.slice(-1)[0];
+                const response = await fetch(`/api/restore/${manifestId}`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    results.innerHTML = `<div class="success">${data.message}</div>`;
+                } else {
+                    results.innerHTML = `<div class="error">${data.message}</div>`;
+                }
+            } catch (error) {
+                results.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function restoreById(id) {
+            document.getElementById('restoreId').value = id;
+            await runRestore();
+        }
+    </script>
+</body>
+</html>
