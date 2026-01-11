@@ -63,13 +63,27 @@ fn main() -> std::io::Result<()> {
         "restore" => {
             let config = config::Config::new()?;
             let ops = Ops::new(config);
-            let id = args.next().or_else(|| ops.list()?.last().cloned())
+            let id = args.next()
+                .or_else(|| ops.list().ok()?.last().cloned())
                 .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "No manifest"))?;
             let manifest = ops.load(&id)?;
             ops.restore(&manifest)?;
             println!("Restored: {}", id);
         }
-        _ => eprintln!("Usage: reclamation [triage|clean|restore] [path|id]"),
+        "list" => {
+            let config = config::Config::new()?;
+            let ops = Ops::new(config);
+            let manifests = ops.list()?;
+            if manifests.is_empty() {
+                println!("No manifests found");
+            } else {
+                println!("Available manifests:");
+                for id in manifests {
+                    println!("  {}", id);
+                }
+            }
+        }
+        _ => eprintln!("Usage: reclamation [triage|clean|restore|list] [path|id]"),
     }
     Ok(())
 }

@@ -8,23 +8,29 @@ Finds and moves junk files (`.tmp`, `.log`, `.DS_Store`, etc.) from a folder to 
 
 **Quarantine** = files are moved, not deleted. You can restore them anytime.
 
-## Build
+## Installation
 
 ```bash
+# Build binary
 cargo build --release
+# Binary will be at: ./target/release/reclamation
+
+# Or install globally
+cargo install --path .
+# Then use: reclamation <command>
 ```
 
 ## Usage
 
 ```bash
-# See what would be cleaned (read-only)
+# If installed globally
 reclamation triage ~/Downloads
 
-# Move auto-safe junk files
-reclamation clean ~/Downloads
+# If using built binary
+./target/release/reclamation triage ~/Downloads
 
-# Restore moved files
-reclamation restore [manifest-id]
+# Or use cargo run (development)
+cargo run -- triage ~/Downloads
 ```
 
 ## Commands
@@ -65,7 +71,30 @@ Example:
 
 The manifest enables `restore` to move files back to their original locations. Manifests are stored in `~/.reclamation/manifests/` and deleted after successful restore.
 
-## Where Files Go
+## Storage Locations
 
-- Moved files: `~/.reclamation/quarantine/`
-- Manifests: `~/.reclamation/manifests/` (JSON files)
+All data is stored in `~/.reclamation/`:
+
+- **Quarantined files**: `~/.reclamation/quarantine/`
+  - Files moved here during `clean` operations
+  - Original filenames preserved
+  
+- **Manifests**: `~/.reclamation/manifests/`
+  - JSON files named `{timestamp}.json`
+  - One manifest per `clean` operation
+  - Contains mapping of original → quarantine paths
+  - Deleted automatically after successful `restore`
+
+## Common Questions
+
+**Q: Is it safe?**  
+A: Yes. Files are moved, not deleted. Everything is reversible via manifests.
+
+**Q: What if I lose a manifest?**  
+A: Manifests are JSON files in `~/.reclamation/manifests/`. You can manually restore by moving files from `quarantine/` back to their original locations.
+
+**Q: Can I customize what gets cleaned?**  
+A: Yes. Edit the rules in `src/classify.rs` - the `AUTO_SAFE` and `DO_NOT_TOUCH` arrays.
+
+**Q: Does it work recursively?**  
+A: Not yet (M1). It only scans direct children of the folder you specify.
