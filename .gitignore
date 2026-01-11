@@ -12,3 +12,8 @@ Cargo.lock
 # OS files
 .DS_Store
 Thumbs.db
+
+# Web frontend
+web/node_modules/
+web/dist/
+web/.vite/

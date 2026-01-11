@@ -5,34 +5,17 @@ use std::fs;
 mod config;
 mod classify;
 mod quarantine;
+mod web;
 
-use classify::{Classification, classify, reason};
+#[path = "lib.rs"]
+mod lib;
+
+use classify::{Classification, reason};
+use lib::{triage_folder, clean_folder, list_manifests, restore_manifest};
 use quarantine::{Ops, Manifest};
 
-fn triage_folder(path: &PathBuf) -> std::io::Result<(Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>)> {
-    let items: Vec<_> = fs::read_dir(path)?
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .collect();
-    
-    let (mut auto, mut review, mut skip) = (Vec::new(), Vec::new(), Vec::new());
-    for item in items {
-        match classify(&item) {
-            Classification::AutoSafe => auto.push(item),
-            Classification::NeedsReview => review.push(item),
-            Classification::DoNotTouch => skip.push(item),
-        }
-    }
-    Ok((auto, review, skip))
-}
-
-fn clean_folder(path: &PathBuf) -> std::io::Result<Manifest> {
-    let config = config::Config::new()?;
-    let (auto_safe, _, _) = triage_folder(path)?;
-    let ops = Ops::new(config);
-    ops.quarantine(&auto_safe)
-}
-
-fn main() -> std::io::Result<()> {
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
     let mut args = env::args().skip(1);
     let cmd = args.next().unwrap_or_default();
     
@@ -61,19 +44,14 @@ fn main() -> std::io::Result<()> {
             println!("Manifest: {}", manifest.id);
         }
         "restore" => {
-            let config = config::Config::new()?;
-            let ops = Ops::new(config);
             let id = args.next()
-                .or_else(|| ops.list().ok()?.last().cloned())
+                .or_else(|| list_manifests().ok()?.last().cloned())
                 .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "No manifest"))?;
-            let manifest = ops.load(&id)?;
-            ops.restore(&manifest)?;
+            restore_manifest(&id)?;
             println!("Restored: {}", id);
         }
         "list" => {
-            let config = config::Config::new()?;
-            let ops = Ops::new(config);
-            let manifests = ops.list()?;
+            let manifests = list_manifests()?;
             if manifests.is_empty() {
                 println!("No manifests found");
             } else {
@@ -83,7 +61,18 @@ fn main() -> std::io::Result<()> {
                 }
             }
         }
-        _ => eprintln!("Usage: reclamation [triage|clean|restore|list] [path|id]"),
+        "web" => {
+            use axum::Router;
+            use tokio::net::TcpListener;
+            
+            let app: Router = web::create_router();
+            let listener = TcpListener::bind("127.0.0.1:3000").await
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            println!("Web UI running at http://127.0.0.1:3000");
+            axum::serve(listener, app).await
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        }
+        _ => eprintln!("Usage: reclamation [triage|clean|restore|list|web] [path|id]"),
     }
     Ok(())
 }
