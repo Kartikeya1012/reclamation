@@ -8,7 +8,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tower_http::cors::{CorsLayer, Any};
-use crate::{triage_folder, clean_folder, list_manifests, restore_manifest};
+use crate::{triage_folder, clean_folder, list_manifests, restore_manifest, summarize_triage};
 use crate::classify::Classification;
 use crate::classify::reason;
 
@@ -40,6 +40,18 @@ pub struct CleanResponse {
 #[derive(Serialize)]
 pub struct ListResponse {
     manifests: Vec<String>,
+}
+
+#[derive(Deserialize)]
+pub struct SummarizeRequest {
+    path: String,
+}
+
+#[derive(Serialize)]
+pub struct SummarizeResponse {
+    success: bool,
+    summary: String,
+    error: Option<String>,
 }
 
 async fn triage_handler(Path(path): Path<String>) -> Result<Json<TriageResult>, StatusCode> {
@@ -112,6 +124,21 @@ async fn restore_handler(Path(id): Path<String>) -> Result<Json<CleanResponse>, 
     }
 }
 
+async fn summarize_handler(Json(req): Json<SummarizeRequest>) -> Json<SummarizeResponse> {
+    match summarize_triage(&PathBuf::from(req.path)).await {
+        Ok(summary) => Json(SummarizeResponse {
+            success: true,
+            summary,
+            error: None,
+        }),
+        Err(e) => Json(SummarizeResponse {
+            success: false,
+            summary: String::new(),
+            error: Some(e),
+        }),
+    }
+}
+
 pub fn create_router() -> Router {
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -123,5 +150,6 @@ pub fn create_router() -> Router {
         .route("/api/clean", post(clean_handler))
         .route("/api/list", get(list_handler))
         .route("/api/restore/:id", post(restore_handler))
+        .route("/api/summarize", post(summarize_handler))
         .layer(cors)
 }

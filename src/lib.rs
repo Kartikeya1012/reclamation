@@ -1,6 +1,7 @@
 pub mod config;
 pub mod classify;
 pub mod quarantine;
+pub mod ai;
 
 use std::path::PathBuf;
 use std::fs;
@@ -50,4 +51,10 @@ pub fn restore_manifest(id: &str) -> std::io::Result<()> {
     });
     let manifest = ops.load(id)?;
     ops.restore(&manifest)
+}
+
+pub async fn summarize_triage(path: &PathBuf) -> Result<String, String> {
+    let (_, needs_review, _) = triage_folder(path)
+        .map_err(|e| e.to_string())?;
+    ai::summarize_files(&needs_review).await
 }

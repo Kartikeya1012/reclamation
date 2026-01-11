@@ -38,6 +38,9 @@ cargo run -- triage ~/Downloads
 - `triage <path>` - Analyze folder, show what would be cleaned
 - `clean <path>` - Move auto-safe items to quarantine
 - `restore [id]` - Restore files (uses latest manifest if no ID)
+- `list` - List all available manifests
+- `summarize <path>` - Get AI summary of files needing review
+- `web` - Start web UI on http://127.0.0.1:3000
 
 ## What Gets Cleaned
 
@@ -96,5 +99,13 @@ A: Manifests are JSON files in `~/.reclamation/manifests/`. You can manually res
 **Q: Can I customize what gets cleaned?**  
 A: Yes. Edit the rules in `src/classify.rs` - the `AUTO_SAFE` and `DO_NOT_TOUCH` arrays.
 
-**Q: Does it work recursively?**  
+**Q: Does it work recursively?**
 A: Not yet (M1). It only scans direct children of the folder you specify.
+
+**Q: How do I use the AI summarize feature?**
+A: Set the `ANTHROPIC_API_KEY` environment variable with your API key, then run:
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+reclamation summarize ~/Downloads
+```
+This analyzes files needing review and provides an AI summary of file types and safety assessment. Also available in the web UI via the "Summarize Triage" button.

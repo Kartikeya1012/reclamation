@@ -1,6 +1,5 @@
 use std::env;
 use std::path::PathBuf;
-use std::fs;
 
 mod config;
 mod classify;
@@ -11,8 +10,7 @@ mod web;
 mod lib;
 
 use classify::{Classification, reason};
-use lib::{triage_folder, clean_folder, list_manifests, restore_manifest};
-use quarantine::{Ops, Manifest};
+use lib::{triage_folder, clean_folder, list_manifests, restore_manifest, summarize_triage};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -61,6 +59,13 @@ async fn main() -> std::io::Result<()> {
                 }
             }
         }
+        "summarize" => {
+            let path = PathBuf::from(args.next()
+                .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Missing path"))?);
+            let summary = summarize_triage(&path).await
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            println!("{}", summary);
+        }
         "web" => {
             use axum::Router;
             use tokio::net::TcpListener;
@@ -72,7 +77,7 @@ async fn main() -> std::io::Result<()> {
             axum::serve(listener, app).await
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
         }
-        _ => eprintln!("Usage: reclamation [triage|clean|restore|list|web] [path|id]"),
+        _ => eprintln!("Usage: reclamation [triage|clean|restore|list|summarize|web] [path|id]"),
     }
     Ok(())
 }

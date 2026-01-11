@@ -23,6 +23,12 @@ interface ListResponse {
   manifests: string[];
 }
 
+interface SummarizeResponse {
+  success: boolean;
+  summary: string;
+  error?: string;
+}
+
 function createApp(): void {
   const app = document.querySelector<HTMLDivElement>('#app')!;
   
@@ -35,7 +41,9 @@ function createApp(): void {
         <div class="input-group">
           <input type="text" id="triagePath" placeholder="Enter folder path (e.g., ~/Downloads)" value="~/Downloads">
           <button id="triageBtn">Triage</button>
+          <button id="summarizeBtn">Summarize Triage</button>
         </div>
+        <div id="summaryResults"></div>
         <div id="triageResults"></div>
       </div>
       
@@ -70,6 +78,7 @@ function createApp(): void {
 
 function setupEventListeners(): void {
   document.getElementById('triageBtn')?.addEventListener('click', runTriage);
+  document.getElementById('summarizeBtn')?.addEventListener('click', runSummarize);
   document.getElementById('cleanBtn')?.addEventListener('click', runClean);
   document.getElementById('listBtn')?.addEventListener('click', listManifests);
   document.getElementById('restoreBtn')?.addEventListener('click', runRestore);
@@ -79,34 +88,58 @@ async function runTriage(): Promise<void> {
   const path = (document.getElementById('triagePath') as HTMLInputElement).value;
   const results = document.getElementById('triageResults')!;
   results.innerHTML = 'Loading...';
-  
+
   try {
     const response = await fetch(`${API_URL}/triage/${encodeURIComponent(path)}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data: TriageResult = await response.json();
-    
+
     let html = `<h3>Auto-safe (${data.auto_safe.length} items)</h3>`;
     html += '<div class="file-list auto-safe">';
     data.auto_safe.forEach(item => {
       html += `<div class="file-item">${escapeHtml(item.path)} ${item.reason ? '- ' + escapeHtml(item.reason) : ''}</div>`;
     });
     html += '</div>';
-    
+
     html += `<h3>Needs Review (${data.needs_review.length} items)</h3>`;
     html += '<div class="file-list needs-review">';
     data.needs_review.forEach(item => {
       html += `<div class="file-item">${escapeHtml(item.path)}</div>`;
     });
     html += '</div>';
-    
+
     html += `<h3>Do Not Touch (${data.do_not_touch.length} items)</h3>`;
     html += '<div class="file-list do-not-touch">';
     data.do_not_touch.forEach(item => {
       html += `<div class="file-item">${escapeHtml(item.path)}</div>`;
     });
     html += '</div>';
-    
+
     results.innerHTML = html;
+  } catch (error) {
+    results.innerHTML = `<div class="error">Error: ${error instanceof Error ? error.message : 'Unknown error'}</div>`;
+  }
+}
+
+async function runSummarize(): Promise<void> {
+  const path = (document.getElementById('triagePath') as HTMLInputElement).value;
+  const results = document.getElementById('summaryResults')!;
+  results.innerHTML = 'Analyzing files...';
+
+  try {
+    const response = await fetch(`${API_URL}/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path })
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data: SummarizeResponse = await response.json();
+
+    if (data.success) {
+      results.innerHTML = `<div class="summary">${escapeHtml(data.summary)}</div>`;
+    } else {
+      results.innerHTML = `<div class="error">${escapeHtml(data.error || 'Unknown error')}</div>`;
+    }
   } catch (error) {
     results.innerHTML = `<div class="error">Error: ${error instanceof Error ? error.message : 'Unknown error'}</div>`;
   }
